@@ -7,6 +7,7 @@ plugins {
 
 repositories {
     jcenter()
+    mavenCentral()
     maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
 }
 
@@ -16,6 +17,7 @@ version = "1.0-SNAPSHOT"
 dependencies {
     implementation(kotlin("stdlib"))
     implementation(compose.desktop.currentOs)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.2")
 }
 
 compose.desktop {
