@@ -1,16 +1,13 @@
 import androidx.compose.desktop.Window
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
 
 fun main() = Window(title = "String completer", size = IntSize(500, 700)) {
     val typedTextState = remember { mutableStateOf("") }
@@ -27,8 +24,8 @@ fun main() = Window(title = "String completer", size = IntSize(500, 700)) {
         Column(modifier = Modifier.fillMaxSize()) {
             inputField(typedTextState, currentActionStatus, stringProcessor::updateAllCompletions)
 
-            Column {
-                // completionChoice("""For your word "${typedTextState.value}":""")
+            Column(modifier = Modifier.verticalScroll(state = ScrollState(0))) {
+                completionChoice("""For your word "${typedTextState.value}":""")
                 for (word in stringProcessor.getAllCompletions()) {
                     completionChoice(word)
                 }

@@ -28,7 +28,7 @@ class Processor(private val currentMapState: MutableState<MutableSet<String>>, p
         println(choiceCompletions.value)
     }
 
-    fun getAllCompletions() = choiceCompletions.value.take(10)
+    fun getAllCompletions() = choiceCompletions.value.take(30)
 
     companion object {
         private const val bufferSize: Int = 1000
