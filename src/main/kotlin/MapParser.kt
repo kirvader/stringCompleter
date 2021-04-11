@@ -1,4 +1,8 @@
+import Processor.Companion.AutoCompletionsStatus.*
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -7,30 +11,61 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.URL
 
-enum class IndexingStatus {
-    INDEXING_STOPPED, INDEXING, MAP_LOADED
-}
-
-class Processor(
-    private val mapState: MutableState<MutableSet<String>>,
-    private val typedWordState: MutableState<String>,
-    private var choiceCompletions: MutableStateFlow<List<String>>,
-    private val indexingStatus: MutableState<IndexingStatus>
-) {
 
 
-    fun getAllWordsAsync() {
+class Processor() {
+
+    /**
+     * Изменяющееся состояние словаря, с которым работаем
+     */
+    private val mapState: MutableState<MutableList<String>> = mutableStateOf(mutableListOf())
+
+    /**
+     * Статус, индексирования словаря mapState
+     */
+    val indexingStatus: MutableState<IndexingStatus> = mutableStateOf(IndexingStatus.INDEXING_STOPPED)
+
+    /**
+     * Состояние строки, введенной пользователем в данный момент
+     */
+    val typedWordState: MutableState<String> = mutableStateOf("")
+
+    /**
+     * Статус прогресса обработки словаря на авто-дополнения введенной пользователем строки
+     */
+    val autoCompletionStatus = mutableStateOf(getCompletionsStatus(READY_TO_START))
+
+    /**
+     * Состояние потока, в который складываются найденные авто-дополнения
+     */
+    private val autoCompletionItemsFlow = MutableStateFlow(listOf<String>())
+
+    init {
+        getAllWordsAsync()
+    }
+
+    /**
+     * getAllWordsAsync - функция позволяющая в отдельном потоке получить все слова находящиеся по указанному в MAP_URL URL
+     *
+     * Она работает следующим образом:
+     * Есть буфер маленького размера который нужно заполнить
+     * Далее с блокировкой на словарь в памяти добавляем все элементы из буфера в словарь и чистим буфер
+     * Так идем до конца
+     *
+     */
+    private fun getAllWordsAsync() {
         indexingStatus.value = IndexingStatus.INDEXING
         GlobalScope.launch(Dispatchers.IO) {
-            val url = URL("https://raw.githubusercontent.com/dwyl/english-words/master/words.txt")
+            val url = URL(MAP_URL)
             val reader = BufferedReader(InputStreamReader(url.openStream()))
             val buffer = mutableListOf<String>()
             var line: String?
             while (reader.readLine().also { line = it } != null && line != null) {
                 buffer.add(line!!)
-                if (buffer.size == bufferSize) {
-                    mapState.value.addAll(buffer)
-                    // println(buffer)
+                if (buffer.size == MAP_LOADING_BUFFER_SIZE) {
+                    synchronized(mapState) {
+                        mapState.value.addAll(buffer)
+                    }
                     buffer.clear()
                 }
             }
@@ -38,45 +73,136 @@ class Processor(
         }
     }
 
-    fun updateAllCompletions(
-        startValue: Int,
-        offset: Int,
-        onAddElement: (String) -> Unit
-    ) {
+    /**
+     * currentJob отвечает за последнюю корутину, которая была запущена
+     *
+     * Нужна для того, чтобы при вводе пользователем следующей буквы,
+     * можно было перестать обрабатывать предыдущую строчку и перейти к следующей
+     *
+     */
+    private var currentJob: Job? = null
 
-        GlobalScope.launch(Dispatchers.Main) {
-            allCompletionsFlow(startValue, offset).map{value ->
-                onAddElement(value)
 
-                value
-            }.collect()
+    /**
+     * updateAllCompletions() обновляет все авто-дополнения для отображения их на экран, а именно:
+     *
+     * Если все еще идет обработка предыдущего, введенного пользователем слова, то нужно прервать эту обработку
+     *
+     * Если пользователь удалил все до пустой строки, то можно ничего и не выводить, чтобы не тратить ресурсы
+     *
+     * Иначе создаем новую отдельную корутину, запускаем в ней flow (nextCompletionsFlow) и из него получаем все новые авто-дополнения
+     * Если после получения очередной пачки авто-дополнений пользователь не изменил строку,
+     * то можно попробовать получить еще одну пачку авто-дополнений.
+     *
+     */
+    fun updateAllCompletions() {
+        autoCompletionItemsFlow.value = listOf()
+        startValue = 0
+        if (currentJob != null) {
+            currentJob!!.cancel()
+            setAutoCompletingStatus(FINISHED)
+        }
+        if (typedWordState.value.isNotEmpty()) {
+            currentJob = GlobalScope.launch(Dispatchers.Main) {
+                setAutoCompletingStatus(IN_PROCESS)
+                while (!currentJob!!.isCancelled && startValue < mapState.value.size) {
+                    nextCompletionsFlow().map { completion ->
+                        autoCompletionItemsFlow.value = autoCompletionItemsFlow.value + completion
+                    }.collect()
+                    delay(1)
+                }
+                setAutoCompletingStatus(FINISHED)
+            }
+        } else {
+            setAutoCompletingStatus(READY_TO_START)
         }
 
     }
 
-    fun allCompletionsFlow(startValue: Int, offset: Int) : Flow<String> = flow {
-        // TODO получать данные между startValue и startValue + offset
-
-        if (typedWordState.value.isNotEmpty()) {
-            var count = 0
-            mapState.value.forEach {
-                if (isSubstring(typedWordState.value, it)) {
-                    count++
-                    if (count > startValue && count < startValue + offset)
-                        emit(it)
-                    if (count > startValue + offset)
-                        return@forEach
+    /**
+     * Запускает flow, в котором ищет очередную небольшую пачку авто-дополнений, подходящих к введенному слову.
+     *
+     * Здесь точно стоит отметить мое предположение о том, что для достаточно небольшого размера искомой
+     * пачки авто-дополнений ответ ищется достаточно быстро. Это происходит из-за очень большого размера
+     * словаря различных, осмысленных слов, а значит более-менее равномерного распределения
+     * слов в словаре по содержанию в них строчки какой-то фиксированной длины.
+     *
+     */
+    private fun nextCompletionsFlow(): Flow<String> = flow {
+        val completionsBuffer = mutableListOf<String>()
+        synchronized(mapState) {
+            while (startValue < mapState.value.size) {
+                val word = mapState.value[startValue]
+                if (isSubstring(typedWordState.value, word)) {
+                    if (completionsBuffer.size < COMPLETION_BUFFER_SIZE) {
+                        completionsBuffer.add(word)
+                    }
+                    if (completionsBuffer.size >= COMPLETION_BUFFER_SIZE)
+                        break
                 }
+                startValue++
             }
         }
+        completionsBuffer.forEach {
+            println(it)
+            emit(it)
+        }
+
     }
 
+    /**
+     * Получает все полученные авто-дополнения в виде состояния, для отображения на экран
+     */
+    @Composable
+    fun collectStateFlowAsState() = autoCompletionItemsFlow.collectAsState()
+
+    /**
+     * Проверка на принадлежность строки sub строке text в качестве подстроки
+     */
     private fun isSubstring(sub: String, text: String): Boolean {
         return text.contains(sub)
     }
 
-    companion object {
-        private const val bufferSize: Int = 1000
+    /**
+     * Сеттер состояния авто-дополнений в качестве строки
+     */
+    private fun setAutoCompletingStatus(status: AutoCompletionsStatus) {
+        autoCompletionStatus.value = getCompletionsStatus(status)
+    }
 
+    /**
+     * Обработка статуса обработки авто-дополнений
+     */
+    private fun getCompletionsStatus(status: AutoCompletionsStatus) = when (status) {
+        READY_TO_START -> "Ready to find"
+        IN_PROCESS -> "In progress"
+        FINISHED -> "Finished"
+    }
+
+
+    companion object {
+        // URL на котором находится словарь
+        private const val MAP_URL = "https://raw.githubusercontent.com/dwyl/english-words/master/words.txt"
+
+        // размер буфера, который используется при загрузке словаря
+        private const val MAP_LOADING_BUFFER_SIZE: Int = 1000
+
+        // размер буфера, который используется при обработке авто-дополнений
+        private const val COMPLETION_BUFFER_SIZE: Int = 100
+
+        // индекс элемента в словаре на котором остановилась обработка авто-дополнений в прошлый раз
+        private var startValue: Int = 0
+
+        enum class IndexingStatus {
+            INDEXING_STOPPED,
+            INDEXING,
+            MAP_LOADED
+        }
+
+        enum class AutoCompletionsStatus {
+            READY_TO_START,
+            IN_PROCESS,
+            FINISHED
+        }
     }
 }

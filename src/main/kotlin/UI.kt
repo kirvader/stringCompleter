@@ -1,25 +1,23 @@
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import java.time.format.TextStyle
 
-
+/**
+ * Отображение текстового поля с возможностью ввода
+ */
 @Composable
 fun inputField(
     typedTextState: MutableState<String>,
+    autoCompletionsStatus: MutableState<String>,
     onValueChanged: () -> Unit
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
@@ -30,21 +28,24 @@ fun inputField(
                 typedTextState.value = it
                 onValueChanged()
             },
-            label = { Text(text = "Type here") }
+            label = { Text(text = autoCompletionsStatus.value) }
         )
 
         Spacer(modifier = Modifier.width(8.dp))
     }
 }
 
+/**
+ * Отображение статуса загрузки словаря в память
+ */
 @Composable
 fun indexingStatusLabel(
-    indexingStatus: MutableState<IndexingStatus>
+    indexingStatus: MutableState<Processor.Companion.IndexingStatus>
 ) {
-    val label = when(indexingStatus.value) {
-        IndexingStatus.INDEXING_STOPPED -> "Indexing stopped"
-        IndexingStatus.INDEXING -> "indexing"
-        IndexingStatus.MAP_LOADED -> "map successfully loaded"
+    val label = when (indexingStatus.value) {
+        Processor.Companion.IndexingStatus.INDEXING_STOPPED -> "Indexing stopped"
+        Processor.Companion.IndexingStatus.INDEXING -> "indexing"
+        Processor.Companion.IndexingStatus.MAP_LOADED -> "map successfully loaded"
     }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
         Text("Indexing status:")
@@ -53,26 +54,40 @@ fun indexingStatusLabel(
     }
 }
 
-
+/**
+ * Отображение кликабельного авто-дополнения по его параметрам
+ */
 @Composable
 fun completionChoice(
-    word: String
+    word: String,
+    onItemClick: ((String) -> Unit)? = null
 ) {
-    Row(modifier = Modifier.height(30.dp).fillMaxWidth().border(
-        BorderStroke(1.dp, Color.LightGray)
-    )) {
-        Text(word, modifier = Modifier.align(Alignment.CenterVertically).absolutePadding(left = 5.dp))
+    Button(
+        onClick = {
+            onItemClick?.let { lambda -> lambda(word) }
+        },
+        modifier = Modifier.fillMaxWidth().height(40.dp).border(
+            BorderStroke(1.dp, Color.White)
+        ),
+        colors = ButtonDefaults.textButtonColors(backgroundColor = Color.LightGray)
+    ) {
+
+            Text(
+                text = word,
+                modifier = Modifier.align(Alignment.CenterVertically).fillMaxWidth().height(30.dp).absolutePadding(left = 5.dp),
+            )
+
     }
 }
 
+/**
+ * Отображение заголовка для авто-дополнений
+ */
 @Composable
-fun showCompletions(
-    completionsState: MutableState<MutableList<String>>
-) {
-    println(completionsState.value)
-    Column (modifier = Modifier.verticalScroll(ScrollState(0))){
-        for (word in completionsState.value) {
-            completionChoice(word)
-        }
+fun choicesHeader(wordState: MutableState<String>) {
+    Row {
+        Text("Auto-completions for the word ", fontStyle = FontStyle.Italic)
+        Text(text = wordState.value, fontWeight = FontWeight.Bold)
     }
 }
+
