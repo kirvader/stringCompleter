@@ -1,4 +1,4 @@
-import Processor.Companion.AutoCompletionsStatus.*
+import StringProcessor.Companion.AutoCompletionsStatus.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
@@ -13,7 +13,7 @@ import java.net.URL
 
 
 
-class Processor() {
+class StringProcessor() {
 
     /**
      * Изменяющееся состояние словаря, с которым работаем
@@ -133,7 +133,7 @@ class Processor() {
         synchronized(mapState) {
             while (startValue < mapState.value.size) {
                 val word = mapState.value[startValue]
-                if (isSubsequence(typedWordState.value, word)) {
+                if (isSubsequence(typedWordState.value.toLowerCase(), word.toLowerCase())) {
                     if (completionsBuffer.size < COMPLETION_BUFFER_SIZE) {
                         completionsBuffer.add(word)
                     }
@@ -176,6 +176,8 @@ class Processor() {
      */
     private fun isSubsequence(subsequence: String, text: String): Boolean {
         var indexSub = 0 // последний индекс в subsequence, для которого нет отображения на обработанном префиксе text
+
+        if (subsequence.isBlank()) return false // Нам не нужны пустые слова
         if (subsequence.length > text.length) return false
 
         for (char in text) {

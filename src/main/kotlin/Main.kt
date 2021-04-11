@@ -9,7 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.IntSize
 
 fun main() = Window(title = "String completer", size = IntSize(500, 700)) {
-    val stringProcessor = Processor()
+    val stringProcessor = StringProcessor()
 
     MaterialTheme {
         Column(modifier = Modifier.fillMaxSize()) {

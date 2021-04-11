@@ -14,10 +14,20 @@ repositories {
 group = "org.example"
 version = "1.0-SNAPSHOT"
 
+tasks.test {
+    useJUnitPlatform()
+}
+
+
 dependencies {
     implementation(kotlin("stdlib"))
     implementation(compose.desktop.currentOs)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.2")
+
+    implementation(kotlin("reflect"))
+
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.7.0")
+    testImplementation(kotlin("test-junit5"))
 }
 
 compose.desktop {

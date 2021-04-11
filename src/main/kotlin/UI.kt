@@ -40,12 +40,12 @@ fun inputField(
  */
 @Composable
 fun indexingStatusLabel(
-    indexingStatus: MutableState<Processor.Companion.IndexingStatus>
+    indexingStatus: MutableState<StringProcessor.Companion.IndexingStatus>
 ) {
     val label = when (indexingStatus.value) {
-        Processor.Companion.IndexingStatus.INDEXING_STOPPED -> "Indexing stopped"
-        Processor.Companion.IndexingStatus.INDEXING -> "indexing"
-        Processor.Companion.IndexingStatus.MAP_LOADED -> "map successfully loaded"
+        StringProcessor.Companion.IndexingStatus.INDEXING_STOPPED -> "Indexing stopped"
+        StringProcessor.Companion.IndexingStatus.INDEXING -> "indexing"
+        StringProcessor.Companion.IndexingStatus.MAP_LOADED -> "map successfully loaded"
     }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
         Text("Indexing status:")
