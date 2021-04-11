@@ -133,7 +133,7 @@ class Processor() {
         synchronized(mapState) {
             while (startValue < mapState.value.size) {
                 val word = mapState.value[startValue]
-                if (isSubstring(typedWordState.value, word)) {
+                if (isSubsequence(typedWordState.value, word)) {
                     if (completionsBuffer.size < COMPLETION_BUFFER_SIZE) {
                         completionsBuffer.add(word)
                     }
@@ -144,7 +144,6 @@ class Processor() {
             }
         }
         completionsBuffer.forEach {
-            println(it)
             emit(it)
         }
 
@@ -157,10 +156,35 @@ class Processor() {
     fun collectStateFlowAsState() = autoCompletionItemsFlow.collectAsState()
 
     /**
-     * Проверка на принадлежность строки sub строке text в качестве подстроки
+     * Проверка на принадлежность строки sub строке text в качестве подпоследовательности
+     *
+     * Будем это делать следующим образом:
+     *
+     * Будем искать именно первое вхождение в качестве подпоследовательности
+     *
+     * Для этого будем всегда искать самое первое вхождение буквы после
+     * самого раннего вхождения префикса идущего до нее проверяемого subsequence
+     *
+     * Соответственно если мы для всех элементов предполагаемой подпоследовательности нашли их ранние отображения, то
+     * это действительно подпоследовательность.
+     * Если же мы не смогли найти, то она не является подпоследовательностью. Докажем это, пойдя от противного:
+     *
+     * пусть это подпоследовательность а мы сказали что нет, тогда выберем в text последовательные индексы {i_0, i_1, ...}
+     * Тогда subsequence[0] = text[i_0], subsequence[1] = text[i_1], ... Тогда для каждого из элементов в subsequence
+     * можно выбрать индекс меньше соответствующего, то есть если обозначить первое вхождение элемента k после
+     * первого вхождения всех предыдущих за inning[k], то inning[k] <= i_k. Значит inning[i_n] < i_n, где n = subsequence.length
      */
-    private fun isSubstring(sub: String, text: String): Boolean {
-        return text.contains(sub)
+    private fun isSubsequence(subsequence: String, text: String): Boolean {
+        var indexSub = 0 // последний индекс в subsequence, для которого нет отображения на обработанном префиксе text
+        if (subsequence.length > text.length) return false
+
+        for (char in text) {
+            if (char == subsequence[indexSub]) indexSub++
+
+            if (indexSub == subsequence.length) return true // если последний индекс для которого
+        // нет отображения большего его размера, значит мы это действительно подпоследовательность
+        }
+        return false
     }
 
     /**
